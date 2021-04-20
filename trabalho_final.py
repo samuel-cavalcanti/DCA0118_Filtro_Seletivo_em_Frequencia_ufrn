@@ -2,6 +2,8 @@ import numpy as np
 from matplotlib import pyplot
 import os
 
+FIGURE_NUMBER = 1  # Cada plot possui um numero que identifica a "folha em que o grafico he desenhado,
+
 
 def read_wav(path: str) -> (list, int):
     from scipy.io import wavfile
@@ -32,7 +34,6 @@ def plot_wave(y: np.array, figure_number: int, title: str, line_format='g-', x: 
 
     if not os.path.isdir(plot_dir):
         os.mkdir(plot_dir)
-
     pyplot.savefig(os.path.join(plot_dir, f'{title}.png'))
     print(f"{title} saved")
 
@@ -45,9 +46,18 @@ def noise(t: float) -> float:
     return A * np.cos(2 * np.pi * f_1 * t) + A * np.cos(2 * np.pi * f_2 * t)
 
 
-def make_noise(size_sample: int, frame_rate: int) -> np.array:
-    period_rate = 1 / frame_rate
+# cria o ruido a partir  do numero total de amostras e do espacamento entre as frequencias na coleta
+def make_noise(size_sample: int, sample_rate: int) -> np.array:
+    period_rate = 1 / sample_rate
     return np.array([noise(i * period_rate) for i in range(size_sample)])
+
+
+# [0, 1, 2, ... , N/2, -N/2, (N/2-N), ((N/2 +1) -N), ((N/2 +2) -N), ... , (N -1) - N ]
+# onde N e o numero de amostras
+def make_frequency_values_in_rads(sample_size: int, sample_rate: int) -> np.array:
+    rads = sample_rate / sample_size
+    return np.array(
+        [rads * n if n < sample_size // 2 else rads * (n - sample_size) for n in range(sample_size)])
 
 
 # calcula a norma de um sinal
@@ -81,17 +91,18 @@ def main():
     plot_wave(noised_song, figure_number, 'noised song', 'b-', x=time_in_seconds)
     figure_number += 1
 
-    sp = np.fft.fft(noised_song)
-    norm_sp = norm(sp)
-    # fftfreq gera os indicies corretos na frequencia ou seja
-    # [0, 1, 2, ... , N/2, -N/2, -N/2 +1, -N/2 +2,  ... -N/2 + N/2 ]
-    # onde N e o numero de amostras
-    sample_spacing = 1 / sample_rate
-    freq = np.fft.fftfreq(noised_song.shape[-1], d=sample_spacing)
+    noised_song_in_frequency_domain = np.fft.fft(noised_song)
+    norm_ns = norm(noised_song_in_frequency_domain)
 
-    print(f'freq shape: {freq.shape}', freq)
+    freq = make_frequency_values_in_rads(noised_song.size, sample_rate)
 
-    plot_wave(norm_sp, figure_number, 'Modulo da Minha voz com ruido na frequencia', x=freq)
+    plot_wave(norm_ns, figure_number, 'Modulo da Minha voz com ruido na frequencia', x=freq)
+    figure_number += 1
+
+    noise_in_frequency = np.fft.fft(noise_sample)
+    norm_noise = norm(noise_in_frequency)
+
+    plot_wave(norm_noise, figure_number, 'ruido na frequencia', x=freq)
     figure_number += 1
 
 
