@@ -1,13 +1,10 @@
 import numpy as np
 from matplotlib import pyplot
 import os
-
-FIGURE_NUMBER = 1  # Cada plot possui um numero que identifica a "folha em que o grafico he desenhado,
+from scipy.io import wavfile
 
 
 def read_wav(path: str) -> (list, int):
-    from scipy.io import wavfile
-
     standard_deviation_table = {
         'int32': 2147483648,
         'int16': 32768,
@@ -23,6 +20,15 @@ def read_wav(path: str) -> (list, int):
     return data, frame_rate_in_samples_per_sec
 
 
+def write_wav(file_name: str, sample_rate, sinal: np.array):
+    audio_dir = 'audios'
+    if not os.path.isdir(audio_dir):
+        os.mkdir(audio_dir)
+
+    wavfile.write(os.path.join(audio_dir, f'{file_name}.wav'), rate=sample_rate, data=sinal)
+    print(f'Saved  {file_name} audio')
+
+
 def plot_wave(y: np.array, figure_number: int, title: str, line_format='g-', x: np.array = np.array([])):
     pyplot.figure(figure_number)
     pyplot.title(title)
@@ -35,7 +41,8 @@ def plot_wave(y: np.array, figure_number: int, title: str, line_format='g-', x: 
     if not os.path.isdir(plot_dir):
         os.mkdir(plot_dir)
     pyplot.savefig(os.path.join(plot_dir, f'{title}.png'))
-    print(f"{title} saved")
+
+    print(f"save plot {title} saved")
 
 
 def noise(t: float) -> float:
@@ -71,39 +78,93 @@ def phase(signal: np.array) -> np.array:
 
 
 def main():
-    song, sample_rate = read_wav('trabalho_final.wav')
-    noise_sample = make_noise(song.shape[0], sample_rate)
+    song, sample_rate_in_hertz = read_wav('audios/song.wav')
+    noise_sample = make_noise(song.shape[0], sample_rate_in_hertz)
 
     second_channel: np.ndarray = song[:, 1]
-
-    figure_number = 1
-
-    time_in_seconds = np.arange(second_channel.size) * 1 / sample_rate
-
-    plot_wave(second_channel, figure_number, 'song', 'b-', x=time_in_seconds)
-    figure_number += 1
-
-    plot_wave(noise_sample[0:1000], figure_number, '1000 samples of noise', x=time_in_seconds[0:1000])
-    figure_number += 1
-
     noised_song = second_channel + noise_sample
 
-    plot_wave(noised_song, figure_number, 'noised song', 'b-', x=time_in_seconds)
-    figure_number += 1
-
     noised_song_in_frequency_domain = np.fft.fft(noised_song)
-    norm_ns = norm(noised_song_in_frequency_domain)
 
-    freq = make_frequency_values_in_rads(noised_song.size, sample_rate)
+    w = make_frequency_values_in_rads(noised_song.size, sample_rate_in_hertz)
 
-    plot_wave(norm_ns, figure_number, 'Modulo da Minha voz com ruido na frequencia', x=freq)
-    figure_number += 1
+    filtered_signal = noised_song_in_frequency_domain.copy()
 
-    noise_in_frequency = np.fft.fft(noise_sample)
-    norm_noise = norm(noise_in_frequency)
+    f_1_in_hertz = 2.4e3
+    f_2_in_hertz = 2.7e3
 
-    plot_wave(norm_noise, figure_number, 'ruido na frequencia', x=freq)
-    figure_number += 1
+    '''
+    1 Hertz = 1rad/2pi
+    0.05pi rad  = 0.025 Hertz
+    '''
+    delta_omega_in_hertz = 0.025
+
+    mask_f_1 = (f_1_in_hertz - delta_omega_in_hertz < np.abs(w)) & (
+            np.abs(w) < f_1_in_hertz + delta_omega_in_hertz)
+
+    mask_f_2 = (f_2_in_hertz - delta_omega_in_hertz < np.abs(w)) & (
+            np.abs(w) < f_2_in_hertz + delta_omega_in_hertz)
+
+    '''
+    os vetor mask_f1, he vetor que contem os indicies que satisfazem as
+    condicoes:   2.4kHz - 0.025Hz  < |w| < 0.24kHz + 0.025Hz
+    
+    e o vetor mask_f2, he o vetor que contem os indicies qie satisfazem
+    as condicoes: 2.7kHz - 0.025Hz  < |w| < 0.27kHz + 0.025Hz
+    
+    onde:
+     0.025 e o delta omega
+     f_1 = 2.4kHz
+     f_2 = 2.7Hz
+    '''
+
+    filtered_signal[mask_f_1] = 0  # dessa forma eu 0 a amplitude do ruido f_1
+
+    filtered_signal[mask_f_2] = 0  # dessa forma eu 0 a amplitude do ruido f_2
+
+    filtered_signal_frequency = filtered_signal.copy()
+
+    filtered_signal = np.fft.ifft(filtered_signal)
+
+    signals_to_save = [
+        {'array': noised_song, 'name': 'noise_song', 'rate': sample_rate_in_hertz},
+        {'array': noise_sample, 'name': 'noise.wav', 'rate': sample_rate_in_hertz},
+        {'array': filtered_signal.real, 'name': 'filtered signal', 'rate': sample_rate_in_hertz},
+    ]
+
+    signals_to_plot = [
+        {'signal': second_channel, 'name': 'minha voz ',
+         'x': np.arange(second_channel.size) * 1 / sample_rate_in_hertz},
+
+        {'signal': noised_song, 'name': 'minha voz com ruido',
+         'x': np.arange(second_channel.size) * 1 / sample_rate_in_hertz},
+
+        {'signal': noise_sample[:1000], 'name': 'ruido no tempo',
+         'x': np.arange(1000) * 1 / sample_rate_in_hertz},
+
+        {'signal': norm(filtered_signal_frequency), 'name': 'minha voz depois do filtro',
+         'x': make_frequency_values_in_rads(second_channel.size, sample_rate_in_hertz)},
+
+        {'signal': norm(noised_song_in_frequency_domain), 'name': 'minha voz ates do filtro',
+         'x': make_frequency_values_in_rads(second_channel.size, sample_rate_in_hertz)},
+    ]
+
+    save_signals_as_wav(signals_to_save)
+
+    plot_signals(signals_to_plot)
+
+
+def save_signals_as_wav(signals: [dict]):
+    for signal in signals:
+        write_wav(signal['name'], signal['rate'], signal['array'])
+
+
+def plot_signals(signals: [dict]):
+    figure_number = 1
+
+    for signal in signals:
+        plot_wave(signal['signal'], figure_number, signal['name'], x=signal['x'])
+        figure_number += 1
 
 
 if __name__ == '__main__':
