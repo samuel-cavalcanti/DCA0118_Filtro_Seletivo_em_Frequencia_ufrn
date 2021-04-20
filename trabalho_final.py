@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib import pyplot
+import os
 
 
 def read_wav(path: str) -> (list, int):
@@ -11,41 +12,47 @@ def read_wav(path: str) -> (list, int):
         'float64': 1
     }
 
-    framerate_in_samples_per_sec, data = wavfile.read(path)
+    frame_rate_in_samples_per_sec, data = wavfile.read(path)
 
     data = data / standard_deviation_table[str(data.dtype)]
 
-    wave_info = f"wav file {path} framerate {framerate_in_samples_per_sec}, data type {data.dtype} channels {data.shape}"
+    wave_info = f"wav file {path} framerate {frame_rate_in_samples_per_sec}, data type {data.dtype} channels {data.shape}"
     print(wave_info)
-    return data, framerate_in_samples_per_sec
+    return data, frame_rate_in_samples_per_sec
 
 
-def plot_wave(data: np.array, figure_number: int, title: str, line_format='g-'):
+def plot_wave(y: np.array, figure_number: int, title: str, line_format='g-', x: np.array = np.array([])):
     pyplot.figure(figure_number)
     pyplot.title(title)
-    pyplot.stem(data, linefmt=line_format, markerfmt=' ')
-    pyplot.show()
-    # pyplot.savefig(f"{title}.png")
+    plot_dir = 'plots'
+    if x.size:
+        pyplot.plot(x, y)
+    else:
+        pyplot.stem(y, linefmt=line_format, markerfmt=' ')
 
+    if not os.path.isdir(plot_dir):
+        os.mkdir(plot_dir)
+
+    pyplot.savefig(os.path.join(plot_dir, f'{title}.png'))
     print(f"{title} saved")
 
 
-def noise(t: int) -> float:
+def noise(t: float) -> float:
     # Parametro 9 : f_1 = 2.4kHz f_2 = 2.7kHz A_r = 60Db deltaW =0.05pi
-    A = 0.01
+    A = 0.005  # esse parâmetro é a minha escolha.
     f_1 = 2.4e3
     f_2 = 2.7e3
-    return A*np.cos(2*np.pi*f_1*t) + A*np.cos(2*np.pi*f_2*t)
+    return A * np.cos(2 * np.pi * f_1 * t) + A * np.cos(2 * np.pi * f_2 * t)
 
 
 def make_noise(size_sample: int, frame_rate: int) -> np.array:
-    period_rate = 1/frame_rate
-    return np.array([noise(i*period_rate) for i in range(size_sample)])
+    period_rate = 1 / frame_rate
+    return np.array([noise(i * period_rate) for i in range(size_sample)])
 
 
 # calcula a norma de um sinal
 def norm(signal: np.array) -> np.array:
-    return np.array([np.sqrt(value.real**2 + value.imag**2) for value in signal])
+    return np.array([np.sqrt(value.real ** 2 + value.imag ** 2) for value in signal])
 
 
 # calcula a fase de um sinal
@@ -53,32 +60,40 @@ def phase(signal: np.array) -> np.array:
     return np.array([np.arctan(value.imag / value.real) for value in signal])
 
 
-song, frame_rate = read_wav('trabalho_final.wav')
-noise_sample = make_noise(song.shape[0], frame_rate)
+def main():
+    song, sample_rate = read_wav('trabalho_final.wav')
+    noise_sample = make_noise(song.shape[0], sample_rate)
+
+    second_channel: np.ndarray = song[:, 1]
+
+    figure_number = 1
+
+    time_in_seconds = np.arange(second_channel.size) * 1 / sample_rate
+
+    plot_wave(second_channel, figure_number, 'song', 'b-', x=time_in_seconds)
+    figure_number += 1
+
+    plot_wave(noise_sample[0:1000], figure_number, '1000 samples of noise', x=time_in_seconds[0:1000])
+    figure_number += 1
+
+    noised_song = second_channel + noise_sample
+
+    plot_wave(noised_song, figure_number, 'noised song', 'b-', x=time_in_seconds)
+    figure_number += 1
+
+    sp = np.fft.fft(noised_song)
+    norm_sp = norm(sp)
+    # fftfreq gera os indicies corretos na frequencia ou seja
+    # [0, 1, 2, ... , N/2, -N/2, -N/2 +1, -N/2 +2,  ... -N/2 + N/2 ]
+    # onde N e o numero de amostras
+    sample_spacing = 1 / sample_rate
+    freq = np.fft.fftfreq(noised_song.shape[-1], d=sample_spacing)
+
+    print(f'freq shape: {freq.shape}', freq)
+
+    plot_wave(norm_sp, figure_number, 'Modulo da Minha voz com ruido na frequencia', x=freq)
+    figure_number += 1
 
 
-figure_number = 1
-
-# plot_wave(song[:, 1], figure_number, 'song', 'b-')
-# figure_number += 1
-
-# plot_wave(noise_sample[0:100], figure_number, '100 samples of noise')
-# figure_number += 1
-
-
-noised_song = song[:, 1] + noise_sample
-
-# plot_wave(noised_song, figure_number, 'noised song', 'b-')
-# figure_number += 1
-
-
-sp = np.fft.fft(noised_song)
-
-norm_sp = norm(sp)
-freq = np.fft.fftfreq(noised_song.shape[-1])
-pyplot.plot(freq, norm_sp.real, freq, norm_sp.imag)
-pyplot.title('Minha voz com ruido na frequencia')
-pyplot.show()
-figure_number += 1
-
-# phase_sp = phase_sp(phase_sp)
+if __name__ == '__main__':
+    main()
