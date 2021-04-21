@@ -36,7 +36,7 @@ def read_wav(path: str) -> (np.ndarray, int):
     return data, frame_rate_in_samples_per_sec
 
 
-def write_wav(file_name: str, sample_rate, sinal: np.array):
+def write_wav(file_name: str, sample_rate, signal: np.array):
     audio_dir = 'audios'
     if not os.path.isdir(audio_dir):
         os.mkdir(audio_dir)
@@ -44,7 +44,7 @@ def write_wav(file_name: str, sample_rate, sinal: np.array):
     if file_name[-4:] != '.wav':
         file_name += '.wav'
 
-    wavfile.write(os.path.join(audio_dir, f'{file_name}'), rate=sample_rate, data=sinal)
+    wavfile.write(os.path.join(audio_dir, f'{file_name}'), rate=sample_rate, data=signal)
     print(f'Saved {file_name} audio')
 
 
@@ -78,6 +78,16 @@ def make_low_pass_kaiser_filter(frequency_in_hertz: float, m_kaiser: int, beta_k
     '''
 
     w_c = 2 * np.pi * frequency_in_hertz / sample_rate
+
+    '''
+    se um valor qualquer for igual a m_kaiser/2 entao ficara 0/0
+    uma ideterminacao, como resolvemos isso ?
+    com um if, obviamente.
+    se value - m_kaiser/2 == 0 entao
+    o valor deve w_c / np.pi
+    Porque w_c / np.pi ?
+    porque pelo teorema l'hospital, sinc(0)= wc/pi
+    '''
 
     sample_sinc = [w_c / np.pi if value - m_kaiser / 2 == 0 else sinc(w_c * (value - (m_kaiser / 2))) for value in x]
 
@@ -150,6 +160,10 @@ def phase(signal: np.ndarray) -> np.ndarray:
 
 
 # atrasa o sinal na metade da sua amostra
+'''
+se o sinal o tamanho do sinal nao for par,
+nao he possivel utilizar a funcao delay
+'''
 def delay(signal: np.ndarray):
     half_array = signal.size // 2
     temp = signal[:half_array].copy()
@@ -255,7 +269,7 @@ def main():
     
     para convoluir um sinal com outro,  basta chamar np.convolve
     o parametro mode='same' garante que a largura do sinal da saida da
-    convolucao sera a mesma 
+    convolucao sera a mesma dos sinais de entrada
     '''
 
     filtered_by_kaiser_filter = np.convolve(noised_song, band_reject, mode='same')
