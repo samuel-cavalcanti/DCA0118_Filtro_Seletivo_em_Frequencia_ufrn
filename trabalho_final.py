@@ -395,47 +395,5 @@ def plot_signals(signals: [dict], show_plot: bool = False):
         pyplot.show()
 
 
-def test_filter():
-    sample_rate = 44100
-
-    m = 148
-    a = 60
-    beta = 0.1102 * (a - 8.7)  # 5.65326
-
-    f_1_in_hertz = 2.4e3
-    f_2_in_hertz = 2.7e3
-
-    low_pass_filter = make_low_pass_kaiser_filter(f_1_in_hertz, m, beta, sample_rate)
-
-    high_pass_filter = make_high_pass_kaiser_filter(f_2_in_hertz, m, beta, sample_rate)
-
-    h_filter = low_pass_filter + high_pass_filter
-
-    w = make_frequency_values_in_hertz(m, sample_rate)
-
-    norm_low_pass_filter = norm(np.fft.fft(low_pass_filter))
-    norm_high_pass_filter = norm(np.fft.fft(high_pass_filter))
-    norm_h_filter = norm(np.fft.fft(h_filter))
-
-    delay(w)
-    delay(norm_low_pass_filter)
-    delay(norm_high_pass_filter)
-    delay(norm_h_filter)
-
-    signals_to_plot = [
-        {'signal': norm_low_pass_filter, 'name': 'filtro passa baixa com $w_{c_1}$ = 2.4 kHz',
-         'x': w},
-
-        {'signal': 20 * np.log10(norm_high_pass_filter), 'name': 'filtro passa alta com $w_{c_2} $= 2.7  kHz',
-         'x': w},
-
-        {'signal': norm_h_filter, 'name': 'Filtro final',
-         'x': w},
-    ]
-
-    plot_signals(signals_to_plot)
-
-
 if __name__ == '__main__':
-    # test_filter()
     main()
