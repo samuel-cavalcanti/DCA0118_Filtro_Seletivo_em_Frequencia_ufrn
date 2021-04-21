@@ -268,7 +268,7 @@ def main():
          'x': time_in_seconds},
 
         {'signal': filtered_by_kaiser_filter,
-         'name': 'minha voz filtrada pelo rejeita banda de kaiser',
+         'name': 'minha voz filtrada pelo rejeita-banda de kaiser',
          'line_format': '-b',
          'x': time_in_seconds},
 
@@ -297,7 +297,7 @@ def main():
          'name': 'resposta em frequencia do filtro kaiser ',
          'x': frequency_values_kaiser},
 
-        {'signal': norm_noised_song_in_frequency_domain, 'name': 'minha voz ates do filtro',
+        {'signal': norm_noised_song_in_frequency_domain, 'name': 'resposta em frequencia da minha voz com ruido',
          'x': w},
     ]
 
