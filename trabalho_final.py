@@ -10,6 +10,20 @@ def read_wav(path: str) -> (np.ndarray, int):
         'int16': 32768,
         'float64': 1
     }
+    '''
+     Olhando na referencia do wav, existem essas maneiras de armazenar um audio: int32, int16, float64,
+     nos inteiros 32bits, os valores variam de -2147483648 ate 2147483648
+     nos inteiros de 16 bits, os valores variam de -32768, 32768
+     nos numeros ponto fluatante de 64 bits, os valores ja estao entre -1 ate 1
+     
+     
+     pode existir outras maneiras de se armazar o audio entao caso ocorra por favor, adicionar na tabela
+     o formato e sua precisao, nao adicionei todos pois nao testei todos, 
+     
+     https://docs.scipy.org/doc/scipy/reference/generated/scipy.io.wavfile.read.html
+     
+     para o processamento de sinais realizados nesse trabalho, foi coveniente adotar a variacao de -1 ate 1
+     '''
 
     frame_rate_in_samples_per_sec, data = wavfile.read(path)
 
@@ -27,10 +41,10 @@ def write_wav(file_name: str, sample_rate, sinal: np.array):
     if not os.path.isdir(audio_dir):
         os.mkdir(audio_dir)
 
-    if len(file_name.split('.')) == 2:
+    if file_name[-4:] != '.wav':
         file_name += '.wav'
 
-    wavfile.write(os.path.join(audio_dir, f'{file_name}.wav'), rate=sample_rate, data=sinal)
+    wavfile.write(os.path.join(audio_dir, f'{file_name}'), rate=sample_rate, data=sinal)
     print(f'Saved {file_name} audio')
 
 
@@ -50,11 +64,27 @@ def plot_wave(y: np.ndarray, figure_number: int, title: str, line_format='g-', x
     print(f"save plot {title} saved")
 
 
+def sinc(n):
+    return np.sin(n) / (np.pi * n)
+
+
 def make_low_pass_kaiser_filter(frequency_in_hertz: float, m_kaiser: int, beta_kaiser: float, sample_rate: int):
     kaiser = np.kaiser(m_kaiser, beta_kaiser)
     x = np.arange(m_kaiser)
 
-    low_pass_filter = np.sinc(2 * frequency_in_hertz / sample_rate * (x - (m_kaiser - 1) // 2)) * kaiser
+    '''
+    o vetor x e um vetor de indices de amostra de 0 ate o M de kaiser
+    para transformar esses indices em valores analogicos temos que multiplicar pelo intervalo de amostragem
+    que he o inverso da frequencia de amostragem
+    '''
+
+    w_c = 2 * np.pi * frequency_in_hertz / sample_rate
+
+    sample_sinc = [w_c / np.pi if value - m_kaiser / 2 == 0 else sinc(w_c * (value - (m_kaiser / 2))) for value in x]
+
+    sample_sinc = np.array(sample_sinc)
+
+    low_pass_filter = sample_sinc * kaiser
 
     low_pass_filter /= np.sum(low_pass_filter)  # normalizando o filtro ,para ficar com valores 0 -1
 
@@ -63,15 +93,27 @@ def make_low_pass_kaiser_filter(frequency_in_hertz: float, m_kaiser: int, beta_k
 
 def make_high_pass_kaiser_filter(frequency_in_hertz: float, m_kaiser: int, beta_kaiser: float, sample_rate: int):
     kaiser = np.kaiser(m_kaiser, beta_kaiser)
-    x = np.arange(m_kaiser)
+    x = np.arange(m_kaiser) + 1e-10  # [0,1,2,3,4, ..., 145]
 
-    high_pass_filter = np.sinc(2 * frequency_in_hertz / sample_rate * (x - (m_kaiser - 1) // 2)) * kaiser
+    '''
+     o vetor x e um vetor de indices de amostra de 0 ate o M de kaiser
+     para transformar esses indices em valores analogicos temos que multiplicar pelo intervalo de amostragem
+     que he o inverso da frequencia de amostragem
+     '''
 
-    high_pass_filter /= np.sum(high_pass_filter)  # normalizando o filtro
+    w_c = 2 * np.pi * frequency_in_hertz / sample_rate
+
+    sample_sinc = [w_c / np.pi if value - m_kaiser / 2 == 0 else sinc(w_c * (value - (m_kaiser / 2))) for value in x]
+
+    sample_sinc = np.array(sample_sinc)
+
+    high_pass_filter = sample_sinc * kaiser
+
+    high_pass_filter /= np.sum(high_pass_filter)  # normalizando o filtro de 0-1
 
     high_pass_filter = -high_pass_filter
 
-    high_pass_filter[(m_kaiser - 1) // 2] += 1
+    high_pass_filter[m_kaiser // 2] += 1  # somando um impulso unitario
 
     return high_pass_filter
 
@@ -131,7 +173,7 @@ def main():
     f_1_in_hertz = 2.4e3
     f_2_in_hertz = 2.7e3
     beta_kaiser = 5.65326  # 0.1102 * (a - 8.7), onde a = 60
-    m_kaiser = 914  # aproximadadmente (a - 8)/(2.285*delta_Omega, onde a = 60 e delta_Omega =0.025
+    m_kaiser = 146  # aproximadadmente (a - 8)/(2.285*delta_Omega, onde a = 60 e delta_Omega =0.025
 
     '''
     1 Hertz = 1rad/2pi
@@ -172,13 +214,28 @@ def main():
     Filtrando usando um filtro de kaiser
     '''
 
-    delta = 100
+    '''
+    um parametro dado pelo professor foi o DeltaW, que e igual a 0.05 pi rad
+    para converter para  Hz tenhos que dividir o valor por 2pi
+    porntando o deltaW/2pi = 0.025 Hz
+    para converter o delta para a nossa banda ([-22.05kHz,22.05kHz]) temos que multiplicar o deltaW pela
+    frequencia de coleta, ou seja 0.025* 44.1kHz
+    logo a nossa banda de transicao he 0.025 * 44.1kHz = 1102.5
+    '''
 
-    low_pass_filter = make_low_pass_kaiser_filter(frequency_in_hertz=f_1_in_hertz - delta, m_kaiser=m_kaiser,
+    transition_band_in_hertz = 1102.5 / 2
+
+    w_c_1 = f_1_in_hertz - transition_band_in_hertz / 2
+
+    w_c_2 = f_2_in_hertz + transition_band_in_hertz / 2
+
+    low_pass_filter = make_low_pass_kaiser_filter(frequency_in_hertz=w_c_1,
+                                                  m_kaiser=m_kaiser,
                                                   beta_kaiser=beta_kaiser,
                                                   sample_rate=sample_rate_in_hertz)
 
-    high_pass_filter = make_high_pass_kaiser_filter(frequency_in_hertz=f_2_in_hertz + delta, m_kaiser=m_kaiser,
+    high_pass_filter = make_high_pass_kaiser_filter(frequency_in_hertz=w_c_2,
+                                                    m_kaiser=m_kaiser,
                                                     beta_kaiser=beta_kaiser,
                                                     sample_rate=sample_rate_in_hertz)
 
@@ -299,6 +356,19 @@ def main():
 
         {'signal': norm_noised_song_in_frequency_domain, 'name': 'resposta em frequencia da minha voz com ruido',
          'x': w},
+
+        {'signal': norm_high_pass_filter,
+         'name': 'resposta em frequencia do filtro passa alta kaiser',
+         'x': frequency_values_kaiser,
+         'line_format': '-g'},
+
+        {'signal': norm_low_pass_filter,
+         'name': 'resposta em frequencia do filtro passa baixa kaiser',
+         'x': frequency_values_kaiser},
+
+        {'signal': norm_band_reject,
+         'name': 'resposta em frequencia do filtro kaiser',
+         'x': frequency_values_kaiser},
     ]
 
     save_signals_as_wav(signals_to_save)
@@ -311,7 +381,7 @@ def save_signals_as_wav(signals: [dict]):
         write_wav(signal['name'], signal['rate'], signal['array'])
 
 
-def plot_signals(signals: [dict]):
+def plot_signals(signals: [dict], show_plot: bool = False):
     figure_number = 1
 
     pyplot.rcParams["figure.figsize"] = (20, 5)
@@ -321,18 +391,14 @@ def plot_signals(signals: [dict]):
                   x=signal['x'])
         figure_number += 1
 
-    # pyplot.show()
-
-
-if __name__ == '__main__':
-    # test_filter()
-    main()
+    if show_plot:
+        pyplot.show()
 
 
 def test_filter():
     sample_rate = 44100
 
-    m = 146
+    m = 148
     a = 60
     beta = 0.1102 * (a - 8.7)  # 5.65326
 
@@ -360,7 +426,7 @@ def test_filter():
         {'signal': norm_low_pass_filter, 'name': 'filtro passa baixa com $w_{c_1}$ = 2.4 kHz',
          'x': w},
 
-        {'signal': norm_high_pass_filter, 'name': 'filtro passa alta com $w_{c_2} $= 2.7  kHz',
+        {'signal': 20 * np.log10(norm_high_pass_filter), 'name': 'filtro passa alta com $w_{c_2} $= 2.7  kHz',
          'x': w},
 
         {'signal': norm_h_filter, 'name': 'Filtro final',
@@ -368,3 +434,8 @@ def test_filter():
     ]
 
     plot_signals(signals_to_plot)
+
+
+if __name__ == '__main__':
+    # test_filter()
+    main()
