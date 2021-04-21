@@ -172,7 +172,7 @@ def main():
     f_1_in_hertz = 2.4e3
     f_2_in_hertz = 2.7e3
     beta_kaiser = 5.65326  # 0.1102 * (a - 8.7), onde a = 60
-    m_kaiser = 146  # aproximadadmente (a - 8)/(2.285*delta_Omega, onde a = 60 e delta_Omega =0.025
+    m_kaiser = 146  # aproximadadmente (a - 8)/(2.285*delta_Omega, onde a = 60 e delta_Omega =0.05pi
 
     '''
     1 Hertz = 1rad/2pi
@@ -239,6 +239,24 @@ def main():
                                                     sample_rate=sample_rate_in_hertz)
 
     band_reject = low_pass_filter + high_pass_filter
+
+    '''
+    O grande objetivo disso tudo e filtrar o ruido que esta em uma regiao especifica na
+    frequencia, uma forma de resolver esse problema, e criar uma funcao que possui
+    o valor aproximadamente 1 na frequencia desejada e  aproximadamente 0 na frequencia
+    nao desejada (onde se localiza o ruido), essa funcao magica he a band_reject,
+    entao basta multiplicar na frequencia e anular o ruido .
+    
+      
+    LEMBRE-SE multiplicar na frequencia he analogo a fazer a convolucao  no
+    dominio do tempo.
+    
+    logo filtrar, he realizar uma convolucao no tempo com a minha funcao magica.
+    
+    para convoluir um sinal com outro,  basta chamar np.convolve
+    o parametro mode='same' garante que a largura do sinal da saida da
+    convolucao sera a mesma 
+    '''
 
     filtered_by_kaiser_filter = np.convolve(noised_song, band_reject, mode='same')
 
