@@ -60,7 +60,6 @@ def plot_wave(y: np.ndarray, figure_number: int, title: str, line_format='g-', x
     if not os.path.isdir(plot_dir):
         os.mkdir(plot_dir)
     pyplot.savefig(os.path.join(plot_dir, f'{title}.png'))
-    # pyplot.show()
     print(f"save plot {title} saved")
 
 
