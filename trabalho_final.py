@@ -102,7 +102,7 @@ def make_low_pass_kaiser_filter(frequency_in_hertz: float, m_kaiser: int, beta_k
 
 def make_high_pass_kaiser_filter(frequency_in_hertz: float, m_kaiser: int, beta_kaiser: float, sample_rate: int):
     kaiser = np.kaiser(m_kaiser, beta_kaiser)
-    x = np.arange(m_kaiser) + 1e-10  # [0,1,2,3,4, ..., 145]
+    x = np.arange(m_kaiser)  # [0,1,2,3,4, ..., 145]
 
     '''
      o vetor x e um vetor de indices de amostra de 0 ate o M de kaiser
